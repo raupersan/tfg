@@ -12,6 +12,5 @@ INDEX VERSION 1.134+C:\Users\Raul\Desktop\Segundo\TFG\.metadata\.plugins\org.ecl
 2155698746.index
 2708966992.index
 889407492.index
-2883972210.index
 3301983704.index
 779700336.index

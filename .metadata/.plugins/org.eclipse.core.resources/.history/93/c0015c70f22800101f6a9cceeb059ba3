@@ -6,10 +6,7 @@ import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
-import javafx.stage.FileChooser;
-import javafx.stage.Window;
 
-import java.io.File;
 import java.io.FileOutputStream;
 import java.sql.*;
 
@@ -51,7 +48,27 @@ public class ClienteView {
 
         cargarClientes(dbUrl, clientes);
 
-        guardarBtn.setOnAction(e -> guardarCliente(dbUrl, nombreField, telefonoField, emailField, clientes));
+        guardarBtn.setOnAction(e -> {
+            String nombre = nombreField.getText();
+            String telefono = telefonoField.getText();
+            String email = emailField.getText();
+            if (!nombre.isBlank()) {
+                try (Connection conn = DriverManager.getConnection(dbUrl)) {
+                    String sql = "INSERT INTO clientes(nombre, telefono, email) VALUES (?, ?, ?)";
+                    PreparedStatement pstmt = conn.prepareStatement(sql);
+                    pstmt.setString(1, nombre);
+                    pstmt.setString(2, telefono);
+                    pstmt.setString(3, email);
+                    pstmt.executeUpdate();
+                    nombreField.clear();
+                    telefonoField.clear();
+                    emailField.clear();
+                    cargarClientes(dbUrl, clientes);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
 
         eliminarBtn.setOnAction(e -> {
             Cliente seleccionado = tabla.getSelectionModel().getSelectedItem();
@@ -87,7 +104,7 @@ public class ClienteView {
                         telefonoField.clear();
                         emailField.clear();
                         cargarClientes(dbUrl, clientes);
-                        guardarBtn.setOnAction(ev2 -> guardarCliente(dbUrl, nombreField, telefonoField, emailField, clientes));
+                        guardarBtn.setOnAction(this::lambda$crearVistaClientes$0);
                     } catch (SQLException ex) {
                         ex.printStackTrace();
                     }
@@ -96,36 +113,30 @@ public class ClienteView {
         });
 
         exportarBtn.setOnAction(e -> {
-            FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Guardar archivo PDF");
-            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivo PDF", "*.pdf"));
-            File archivo = fileChooser.showSaveDialog(layout.getScene().getWindow());
-            if (archivo != null) {
-                try {
-                    Document document = new Document();
-                    PdfWriter.getInstance(document, new FileOutputStream(archivo));
-                    document.open();
-                    document.add(new Paragraph("Lista de Clientes"));
-                    document.add(new Paragraph(" "));
-                    PdfPTable table = new PdfPTable(3);
-                    table.addCell("Nombre");
-                    table.addCell("Teléfono");
-                    table.addCell("Email");
-                    for (Cliente c : clientes) {
-                        table.addCell(c.getNombre());
-                        table.addCell(c.getTelefono());
-                        table.addCell(c.getEmail());
-                    }
-                    document.add(table);
-                    document.close();
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle("Exportación");
-                    alert.setHeaderText(null);
-                    alert.setContentText("Exportación a PDF completada: " + archivo.getAbsolutePath());
-                    alert.showAndWait();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
+            try {
+                Document document = new Document();
+                PdfWriter.getInstance(document, (java.io.OutputStream) new FileOutputStream("clientes.pdf"));
+                document.open();
+                document.add(new Paragraph("Lista de Clientes"));
+                document.add(new Paragraph(" "));
+                PdfPTable table = new PdfPTable(3);
+                table.addCell("Nombre");
+                table.addCell("Teléfono");
+                table.addCell("Email");
+                for (Cliente c : clientes) {
+                    table.addCell(c.getNombre());
+                    table.addCell(c.getTelefono());
+                    table.addCell(c.getEmail());
                 }
+                document.add(table);
+                document.close();
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Exportación");
+                alert.setHeaderText(null);
+                alert.setContentText("Exportación a PDF completada: clientes.pdf");
+                alert.showAndWait();
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
         });
 
@@ -133,28 +144,6 @@ public class ClienteView {
                 guardarBtn, editarBtn, eliminarBtn, exportarBtn, tabla);
 
         return layout;
-    }
-
-    private static void guardarCliente(String dbUrl, TextField nombreField, TextField telefonoField, TextField emailField, ObservableList<Cliente> clientes) {
-        String nombre = nombreField.getText();
-        String telefono = telefonoField.getText();
-        String email = emailField.getText();
-        if (!nombre.isBlank()) {
-            try (Connection conn = DriverManager.getConnection(dbUrl)) {
-                String sql = "INSERT INTO clientes(nombre, telefono, email) VALUES (?, ?, ?)";
-                PreparedStatement pstmt = conn.prepareStatement(sql);
-                pstmt.setString(1, nombre);
-                pstmt.setString(2, telefono);
-                pstmt.setString(3, email);
-                pstmt.executeUpdate();
-                nombreField.clear();
-                telefonoField.clear();
-                emailField.clear();
-                cargarClientes(dbUrl, clientes);
-            } catch (SQLException ex) {
-                ex.printStackTrace();
-            }
-        }
     }
 
     private static void cargarClientes(String dbUrl, ObservableList<Cliente> clientes) {
