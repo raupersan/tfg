@@ -1,0 +1,145 @@
+package tfg;
+
+import com.lowagie.text.*;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
+import javafx.application.Application;
+import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+
+import java.io.FileOutputStream;
+import java.sql.*;
+import java.time.LocalDate;
+
+public class Main extends Application {
+
+    private static final String DB_URL = "jdbc:sqlite:negocio.db";
+    private TableView<Producto> tablaProductos;
+    private ObservableList<Producto> listaProductos;
+    private TableView<String> tablaVentas;
+    private ObservableList<String> listaVentas;
+
+    @Override
+    public void start(Stage primaryStage) {
+        primaryStage.setTitle("Sistema de Gestión de Negocio");
+
+        TabPane tabPane = new TabPane();
+
+        Tab clientesTab = new Tab("Clientes", ClienteView.crearVistaClientes(DB_URL));
+        Tab productosTab = new Tab("Productos", crearVistaProductos());
+        Tab ventasTab = new Tab("Ventas", crearVistaVentas());
+
+        tabPane.getTabs().addAll(clientesTab, productosTab, ventasTab);
+
+        Scene scene = new Scene(tabPane, 800, 600);
+        primaryStage.setScene(scene);
+        primaryStage.show();
+
+        crearTablasSiNoExisten();
+        cargarProductos();
+        cargarVentas();
+    }
+
+    private VBox crearVistaVentas() {
+        VBox layout = new VBox(10);
+        layout.setPadding(new Insets(10));
+
+        TextField clienteField = new TextField();
+        clienteField.setPromptText("Nombre del cliente");
+
+        TextField productoIdField = new TextField();
+        productoIdField.setPromptText("ID del producto");
+
+        TextField cantidadField = new TextField();
+        cantidadField.setPromptText("Cantidad");
+
+        Button registrarBtn = new Button("Registrar Venta");
+        registrarBtn.setOnAction(e -> {
+            try {
+                int productoId = Integer.parseInt(productoIdField.getText());
+                int cantidad = Integer.parseInt(cantidadField.getText());
+                boolean registrada = registrarVenta(clienteField.getText(), productoId, cantidad);
+                if (registrada) {
+                    mostrarConfirmacion("Venta registrada correctamente.");
+                }
+                clienteField.clear();
+                productoIdField.clear();
+                cantidadField.clear();
+                cargarVentas();
+                cargarProductos();
+            } catch (NumberFormatException ex) {
+                mostrarAlerta("Error", "ID del producto y cantidad deben ser números válidos.");
+            }
+        });
+
+        Button exportarBtn = new Button("Exportar Ventas a PDF");
+        exportarBtn.setOnAction(e -> exportarVentasPDF());
+
+        tablaVentas = new TableView<>();
+        TableColumn<String, String> colVenta = new TableColumn<>("Ventas Registradas");
+        colVenta.setCellValueFactory(data -> new SimpleStringProperty(data.getValue()));
+        tablaVentas.getColumns().add(colVenta);
+
+        listaVentas = FXCollections.observableArrayList();
+        tablaVentas.setItems(listaVentas);
+
+        layout.getChildren().addAll(
+                new Label("Registrar nueva venta:"),
+                clienteField, productoIdField, cantidadField,
+                registrarBtn, exportarBtn,
+                new Label("Historial de Ventas:"),
+                tablaVentas);
+
+        return layout;
+    }
+
+    private void exportarVentasPDF() {
+        try (Connection conn = DriverManager.getConnection(DB_URL)) {
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM ventas ORDER BY fecha DESC");
+
+            Document document = new Document();
+            PdfWriter.getInstance(document, new FileOutputStream("ventas.pdf"));
+            document.open();
+
+            document.add(new Paragraph("Historial de Ventas"));
+            document.add(new Paragraph(" " ));
+
+            PdfPTable table = new PdfPTable(5);
+            table.addCell("Fecha");
+            table.addCell("Cliente");
+            table.addCell("Producto");
+            table.addCell("Cantidad");
+            table.addCell("Total (€)");
+
+            while (rs.next()) {
+                table.addCell(rs.getString("fecha"));
+                table.addCell(rs.getString("cliente"));
+                table.addCell(rs.getString("producto"));
+                table.addCell(String.valueOf(rs.getInt("cantidad")));
+                table.addCell(String.format("%.2f", rs.getDouble("total")));
+            }
+
+            document.add(table);
+            document.close();
+
+            mostrarConfirmacion("Exportación a PDF completada (ventas.pdf)");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            mostrarAlerta("Error", "No se pudo exportar el PDF.");
+        }
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}

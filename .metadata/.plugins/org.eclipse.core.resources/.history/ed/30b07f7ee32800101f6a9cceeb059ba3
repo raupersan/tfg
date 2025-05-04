@@ -1,6 +1,8 @@
 package tfg;
 
 import com.lowagie.text.*;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
 import javafx.application.Application;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -194,22 +196,14 @@ public class Main extends Application {
         }
     }
 
-    private void cargarVentas(String filtro) {
+    private void cargarVentas() {
         listaVentas = FXCollections.observableArrayList();
         try (Connection conn = DriverManager.getConnection(DB_URL)) {
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT * FROM ventas ORDER BY fecha DESC");
             while (rs.next()) {
-                String cliente = rs.getString("cliente");
-                String producto = rs.getString("producto");
-                int cantidad = rs.getInt("cantidad");
-                double total = rs.getDouble("total");
-                String fecha = rs.getString("fecha");
-                String venta = String.format("%s - %s x%d - %.2f €", fecha, producto, cantidad, total);
-
-                if (filtro == null || cliente.toLowerCase().contains(filtro.toLowerCase()) || producto.toLowerCase().contains(filtro.toLowerCase())) {
-                    listaVentas.add(venta);
-                }
+                String venta = String.format("%s - %s x%d - %.2f €", rs.getString("fecha"), rs.getString("producto"), rs.getInt("cantidad"), rs.getDouble("total"));
+                listaVentas.add(venta);
             }
             tablaVentas.setItems(listaVentas);
         } catch (SQLException e) {

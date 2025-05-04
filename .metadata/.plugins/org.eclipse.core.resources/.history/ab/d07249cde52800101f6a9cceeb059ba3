@@ -33,7 +33,7 @@ public class Main extends Application {
 
         Tab clientesTab = new Tab("Clientes", ClienteView.crearVistaClientes(DB_URL));
         Tab productosTab = new Tab("Productos", crearVistaProductos());
-        Tab ventasTab = new Tab("Ventas", crearVistaVentas());
+     //   Tab ventasTab = new Tab("Ventas", crearVistaVentas());
 
         tabPane.getTabs().addAll(clientesTab, productosTab, ventasTab);
 

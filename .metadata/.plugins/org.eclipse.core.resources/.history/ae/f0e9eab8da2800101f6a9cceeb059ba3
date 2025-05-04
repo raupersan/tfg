@@ -1,0 +1,45 @@
+// Archivo: ClienteView.java
+package tfg;
+
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+
+import java.sql.*;
+
+public class ClienteView {
+
+    public static VBox crearVistaClientes(String dbUrl) {
+        VBox layout = new VBox(10);
+        layout.setPadding(new Insets(10));
+
+        TextField nombreField = new TextField();
+        nombreField.setPromptText("Nombre del cliente");
+        TextField telefonoField = new TextField();
+        telefonoField.setPromptText("Teléfono");
+        TextField emailField = new TextField();
+        emailField.setPromptText("Email");
+
+        Button guardarBtn = new Button("Guardar Cliente");
+        Button eliminarBtn = new Button("Eliminar Cliente Seleccionado");
+        Button editarBtn = new Button("Editar Cliente");
+
+        TableView<Cliente> tabla = new TableView<>();
+        ObservableList<Cliente> clientes = FXCollections.observableArrayList();
+
+        TableColumn<Cliente, String> colNombre = new TableColumn<>("Nombre");
+        colNombre.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getNombre()));
+
+        tabla.getColumns().add(colNombre);
+        tabla.setItems(clientes);
+
+        layout.getChildren().addAll(nombreField, telefonoField, emailField,
+                guardarBtn, editarBtn, eliminarBtn, tabla);
+
+        // Aquí deberías añadir lógica de guardar, eliminar y editar
+
+        return layout;
+    }
+}
