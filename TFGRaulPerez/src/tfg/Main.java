@@ -39,6 +39,7 @@ public class Main extends Application {
         cargarClientes();
     }
 
+    
     private VBox crearVistaClientes() {
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(10));

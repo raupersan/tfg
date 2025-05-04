@@ -14,5 +14,5 @@
     <stringAttribute key="org.eclipse.jdt.launching.MAIN_TYPE" value="tfg.Main"/>
     <stringAttribute key="org.eclipse.jdt.launching.MODULE_NAME" value="TFGRaulPerez"/>
     <stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="TFGRaulPerez"/>
-    <stringAttribute key="org.eclipse.jdt.launching.VM_ARGUMENTS" value="--module-path &quot;C:\javafx-sdk-21\lib&quot; --add-modules javafx.controls,javafx.fxml"/>
+    <stringAttribute key="org.eclipse.jdt.launching.VM_ARGUMENTS" value="-Dprism.order=sw -Dprism.verbose=true&#13;&#10;--module-path &quot;${workspace_loc:TFGRaulPerez}/lib&quot; --add-modules javafx.controls,javafx.fxml -Djava.library.path=&quot;${workspace_loc:TFGRaulPerez}/lib&quot;"/>
 </launchConfiguration>
