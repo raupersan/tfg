@@ -1,8 +1,6 @@
 package tfg;
 
 import com.lowagie.text.*;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
 import javafx.application.Application;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -24,6 +22,8 @@ public class Main extends Application {
     private static final String DB_URL = "jdbc:sqlite:negocio.db";
     private TableView<Producto> tablaProductos;
     private ObservableList<Producto> listaProductos;
+    private TableView<String> tablaVentas;
+    private ObservableList<String> listaVentas;
 
     @Override
     public void start(Stage primaryStage) {
@@ -33,7 +33,7 @@ public class Main extends Application {
 
         Tab clientesTab = new Tab("Clientes", ClienteView.crearVistaClientes(DB_URL));
         Tab productosTab = new Tab("Productos", crearVistaProductos());
-        Tab ventasTab = new Tab("Ventas", VentaView.crearVistaVentas(DB_URL));
+        Tab ventasTab = new Tab("Ventas", crearVistaVentas());
 
         tabPane.getTabs().addAll(clientesTab, productosTab, ventasTab);
 
@@ -43,6 +43,7 @@ public class Main extends Application {
 
         crearTablasSiNoExisten();
         cargarProductos();
+        cargarVentas();
     }
 
     private VBox crearVistaProductos() {
@@ -188,6 +189,29 @@ public class Main extends Application {
                 );
                 listaProductos.add(p);
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void cargarVentas(String filtro) {
+        listaVentas = FXCollections.observableArrayList();
+        try (Connection conn = DriverManager.getConnection(DB_URL)) {
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM ventas ORDER BY fecha DESC");
+            while (rs.next()) {
+                String cliente = rs.getString("cliente");
+                String producto = rs.getString("producto");
+                int cantidad = rs.getInt("cantidad");
+                double total = rs.getDouble("total");
+                String fecha = rs.getString("fecha");
+                String venta = String.format("%s - %s x%d - %.2f €", fecha, producto, cantidad, total);
+
+                if (filtro == null || cliente.toLowerCase().contains(filtro.toLowerCase()) || producto.toLowerCase().contains(filtro.toLowerCase())) {
+                    listaVentas.add(venta);
+                }
+            }
+            tablaVentas.setItems(listaVentas);
         } catch (SQLException e) {
             e.printStackTrace();
         }

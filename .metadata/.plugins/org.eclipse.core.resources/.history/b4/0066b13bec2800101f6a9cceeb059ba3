@@ -1,0 +1,267 @@
+package tfg;
+
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.io.FileOutputStream;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.SimpleDateFormat;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTable;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.table.DefaultTableModel;
+// Importaciones de iText 2.1.7
+import com.lowagie.text.Document;
+import com.lowagie.text.DocumentException;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.Phrase;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
+
+public class VentaView {
+
+    public static JPanel crearVistaVentas(String dbUrl) {
+        // Panel principal con diseño BorderLayout
+        JPanel panel = new JPanel(new BorderLayout());
+        // Panel superior que contendrá el formulario y la sección de búsqueda
+        JPanel panelSuperior = new JPanel();
+        panelSuperior.setLayout(new javax.swing.BoxLayout(panelSuperior, javax.swing.BoxLayout.Y_AXIS));
+        
+        // Panel de formulario para registrar una nueva venta
+        JPanel formPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JLabel lblCliente = new JLabel("Cliente:");
+        JTextField txtCliente = new JTextField(15);
+        JLabel lblProducto = new JLabel("ID Producto:");
+        JTextField txtProducto = new JTextField(5);
+        JLabel lblCantidad = new JLabel("Cantidad:");
+        JTextField txtCantidad = new JTextField(5);
+        JButton btnRegistrar = new JButton("Registrar Venta");
+        formPanel.add(lblCliente);
+        formPanel.add(txtCliente);
+        formPanel.add(lblProducto);
+        formPanel.add(txtProducto);
+        formPanel.add(lblCantidad);
+        formPanel.add(txtCantidad);
+        formPanel.add(btnRegistrar);
+        
+        // Panel de búsqueda y exportación
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JLabel lblBuscar = new JLabel("Buscar:");
+        JTextField txtBuscar = new JTextField(15);
+        JButton btnBuscar = new JButton("Buscar");
+        JButton btnExportar = new JButton("Exportar a PDF");
+        searchPanel.add(lblBuscar);
+        searchPanel.add(txtBuscar);
+        searchPanel.add(btnBuscar);
+        searchPanel.add(btnExportar);
+        
+        // Añadir subpaneles al panel superior
+        panelSuperior.add(formPanel);
+        panelSuperior.add(searchPanel);
+        
+        // Modelo y tabla para el historial de ventas
+        String[] columnas = { "Fecha", "Cliente", "Producto", "Cantidad", "Total" };
+        DefaultTableModel modeloVentas = new DefaultTableModel(columnas, 0);
+        JTable tablaVentas = new JTable(modeloVentas);
+        JScrollPane scrollTabla = new JScrollPane(tablaVentas);
+        
+        // Cargar datos iniciales de la tabla ventas desde la base de datos
+        try (Connection con = DriverManager.getConnection(dbUrl);
+             Statement st = con.createStatement();
+             ResultSet rs = st.executeQuery("SELECT fecha, cliente, producto, cantidad, total FROM ventas")) {
+            while (rs.next()) {
+                Object[] fila = new Object[] {
+                    rs.getString("fecha"),
+                    rs.getString("cliente"),
+                    rs.getString("producto"),
+                    rs.getInt("cantidad"),
+                    rs.getDouble("total")
+                };
+                modeloVentas.addRow(fila);
+            }
+        } catch (SQLException e) {
+            // En caso de error, mostrar mensaje de advertencia
+            JOptionPane.showMessageDialog(panel, "Error al cargar ventas: " + e.getMessage(), 
+                                          "Error de Base de Datos", JOptionPane.ERROR_MESSAGE);
+        }
+        
+        // Añadir componentes principales al panel
+        panel.add(panelSuperior, BorderLayout.NORTH);
+        panel.add(scrollTabla, BorderLayout.CENTER);
+        
+        // Acción del botón "Registrar Venta"
+        btnRegistrar.addActionListener(ev -> {
+            String nombreCliente = txtCliente.getText().trim();
+            String textoProducto = txtProducto.getText().trim();
+            String textoCantidad = txtCantidad.getText().trim();
+            if (nombreCliente.isEmpty() || textoProducto.isEmpty() || textoCantidad.isEmpty()) {
+                JOptionPane.showMessageDialog(panel, "Por favor, complete todos los campos.", 
+                                              "Campos incompletos", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            int idProducto;
+            int cantidad;
+            try {
+                idProducto = Integer.parseInt(textoProducto);
+                cantidad = Integer.parseInt(textoCantidad);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(panel, "El ID de producto y la cantidad deben ser numéricos.", 
+                                              "Datos inválidos", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            Connection con = null;
+            try {
+                con = DriverManager.getConnection(dbUrl);
+                con.setAutoCommit(false);
+                // Verificar existencia del producto y stock disponible
+                String sqlProd = "SELECT nombre, stock, precio FROM productos WHERE id = ?";
+                try (PreparedStatement psProd = con.prepareStatement(sqlProd)) {
+                    psProd.setInt(1, idProducto);
+                    try (ResultSet rsProd = psProd.executeQuery()) {
+                        if (!rsProd.next()) {
+                            JOptionPane.showMessageDialog(panel, "Producto no encontrado (ID: " + idProducto + ").", 
+                                                          "Producto no existe", JOptionPane.ERROR_MESSAGE);
+                            con.rollback();
+                            return;
+                        }
+                        String nombreProducto = rsProd.getString("nombre");
+                        int stockActual = rsProd.getInt("stock");
+                        double precioUnitario = rsProd.getDouble("precio");
+                        if (cantidad > stockActual) {
+                            JOptionPane.showMessageDialog(panel, "Stock insuficiente del producto. Disponibles: " + stockActual, 
+                                                          "Stock insuficiente", JOptionPane.ERROR_MESSAGE);
+                            con.rollback();
+                            return;
+                        }
+                        // Descontar stock y registrar la venta
+                        String sqlUpdate = "UPDATE productos SET stock = stock - ? WHERE id = ?";
+                        try (PreparedStatement psUpdate = con.prepareStatement(sqlUpdate)) {
+                            psUpdate.setInt(1, cantidad);
+                            psUpdate.setInt(2, idProducto);
+                            psUpdate.executeUpdate();
+                        }
+                        // Preparar registro de venta
+                        double totalVenta = precioUnitario * cantidad;
+                        String fechaVenta = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+                        String sqlVenta = "INSERT INTO ventas(fecha, cliente, producto, cantidad, total) VALUES(?, ?, ?, ?, ?)";
+                        try (PreparedStatement psVenta = con.prepareStatement(sqlVenta)) {
+                            psVenta.setString(1, fechaVenta);
+                            psVenta.setString(2, nombreCliente);
+                            psVenta.setString(3, nombreProducto);
+                            psVenta.setInt(4, cantidad);
+                            psVenta.setDouble(5, totalVenta);
+                            psVenta.executeUpdate();
+                        }
+                        // Confirmar transacción
+                        con.commit();
+                        // Añadir la nueva venta a la tabla en la interfaz
+                        Object[] nuevaFila = { fechaVenta, nombreCliente, nombreProducto, cantidad, totalVenta };
+                        modeloVentas.addRow(nuevaFila);
+                        // Limpiar campos del formulario
+                        txtCliente.setText("");
+                        txtProducto.setText("");
+                        txtCantidad.setText("");
+                        // Mensaje de confirmación
+                        JOptionPane.showMessageDialog(panel, "Venta registrada con éxito.", 
+                                                      "Venta registrada", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }
+            } catch (SQLException ex) {
+                try {
+                    if (con != null) con.rollback();
+                } catch (SQLException ex2) {
+                    // Sin acción adicional en caso de fallo de rollback
+                }
+                JOptionPane.showMessageDialog(panel, "Error al registrar la venta: " + ex.getMessage(), 
+                                              "Error de Base de Datos", JOptionPane.ERROR_MESSAGE);
+            } finally {
+                try {
+                    if (con != null) con.setAutoCommit(true);
+                    if (con != null) con.close();
+                } catch (SQLException ex) {
+                    // Ignorar errores al cerrar
+                }
+            }
+        });
+        
+        // Acción del botón "Buscar"
+        btnBuscar.addActionListener(ev -> {
+            String filtro = txtBuscar.getText().trim();
+            // Limpiar tabla antes de aplicar filtro
+            modeloVentas.setRowCount(0);
+            String sqlBuscar;
+            boolean conFiltro = !filtro.isEmpty();
+            if (conFiltro) {
+                sqlBuscar = "SELECT fecha, cliente, producto, cantidad, total FROM ventas "
+                          + "WHERE cliente LIKE ? OR producto LIKE ?";
+            } else {
+                sqlBuscar = "SELECT fecha, cliente, producto, cantidad, total FROM ventas";
+            }
+            try (Connection con = DriverManager.getConnection(dbUrl);
+                 PreparedStatement psBuscar = con.prepareStatement(sqlBuscar)) {
+                if (conFiltro) {
+                    String patron = "%" + filtro + "%";
+                    psBuscar.setString(1, patron);
+                    psBuscar.setString(2, patron);
+                }
+                try (ResultSet rs = psBuscar.executeQuery()) {
+                    while (rs.next()) {
+                        Object[] fila = new Object[] {
+                            rs.getString("fecha"),
+                            rs.getString("cliente"),
+                            rs.getString("producto"),
+                            rs.getInt("cantidad"),
+                            rs.getDouble("total")
+                        };
+                        modeloVentas.addRow(fila);
+                    }
+                }
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(panel, "Error al buscar ventas: " + ex.getMessage(), 
+                                              "Error de Base de Datos", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        // Acción del botón "Exportar a PDF"
+        btnExportar.addActionListener(ev -> {
+            try {
+                Document document = new Document();
+                PdfWriter.getInstance(document, new FileOutputStream("ventas.pdf"));
+                document.open();
+                // Título del documento
+                document.add(new Paragraph("Historial de Ventas"));
+                document.add(new Paragraph(" ")); // línea en blanco
+                // Crear tabla PDF con el número de columnas adecuado
+                PdfPTable pdfTable = new PdfPTable(modeloVentas.getColumnCount());
+                // Agregar encabezados de la tabla
+                for (int i = 0; i < modeloVentas.getColumnCount(); i++) {
+                    pdfTable.addCell(new Phrase(modeloVentas.getColumnName(i)));
+                }
+                // Agregar filas de datos
+                for (int i = 0; i < modeloVentas.getRowCount(); i++) {
+                    for (int j = 0; j < modeloVentas.getColumnCount(); j++) {
+                        Object valor = modeloVentas.getValueAt(i, j);
+                        pdfTable.addCell(new Phrase(valor != null ? valor.toString() : ""));
+                    }
+                }
+                document.add(pdfTable);
+                document.close();
+                JOptionPane.showMessageDialog(panel, "Historial exportado a ventas.pdf exitosamente.", 
+                                              "Exportación completada", JOptionPane.INFORMATION_MESSAGE);
+            } catch (DocumentException | java.io.IOException ex) {
+                JOptionPane.showMessageDialog(panel, "Error al exportar a PDF: " + ex.getMessage(), 
+                                              "Error al exportar", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        return panel;
+    }
+}
