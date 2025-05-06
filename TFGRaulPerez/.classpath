@@ -63,5 +63,6 @@
 	</classpathentry>
 	<classpathentry kind="lib" path="lib/itext-2.1.7.jar"/>
 	<classpathentry kind="lib" path="lib/sqlite-jdbc-3.49.1.0.jar"/>
+	<classpathentry kind="lib" path="lib/json-20231013.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

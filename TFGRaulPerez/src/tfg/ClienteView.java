@@ -21,6 +21,7 @@ public class ClienteView {
     public static VBox crearVistaClientes(String dbUrl) {
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(10));
+        layout.getChildren().add(OpenAIClient.crearBotonChatGPTResumen(dbUrl, "clientes"));
 
         TextField nombreField = new TextField();
         nombreField.setPromptText("Nombre del cliente");

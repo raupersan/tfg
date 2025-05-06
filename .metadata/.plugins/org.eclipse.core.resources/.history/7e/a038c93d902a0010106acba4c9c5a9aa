@@ -1,0 +1,177 @@
+package tfg;
+
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.scene.control.*;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.stage.Window;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.sql.*;
+
+import com.lowagie.text.*;
+import com.lowagie.text.pdf.*;
+
+public class ClienteView {
+
+    public static VBox crearVistaClientes(String dbUrl) {
+        VBox layout = new VBox(10);
+        layout.setPadding(new Insets(10));
+
+        TextField nombreField = new TextField();
+        nombreField.setPromptText("Nombre del cliente");
+        TextField telefonoField = new TextField();
+        telefonoField.setPromptText("Teléfono");
+        TextField emailField = new TextField();
+        emailField.setPromptText("Email");
+
+        Button guardarBtn = new Button("Guardar Cliente");
+        Button eliminarBtn = new Button("Eliminar Cliente Seleccionado");
+        Button editarBtn = new Button("Editar Cliente");
+        Button exportarBtn = new Button("Exportar Clientes a PDF");
+
+        TableView<Cliente> tabla = new TableView<>();
+        ObservableList<Cliente> clientes = FXCollections.observableArrayList();
+
+        TableColumn<Cliente, String> colNombre = new TableColumn<>("Nombre");
+        colNombre.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getNombre()));
+
+        TableColumn<Cliente, String> colTelefono = new TableColumn<>("Teléfono");
+        colTelefono.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getTelefono()));
+
+        TableColumn<Cliente, String> colEmail = new TableColumn<>("Email");
+        colEmail.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getEmail()));
+
+        tabla.getColumns().addAll(colNombre, colTelefono, colEmail);
+        tabla.setItems(clientes);
+
+        cargarClientes(dbUrl, clientes);
+
+        guardarBtn.setOnAction(e -> guardarCliente(dbUrl, nombreField, telefonoField, emailField, clientes));
+
+        eliminarBtn.setOnAction(e -> {
+            Cliente seleccionado = tabla.getSelectionModel().getSelectedItem();
+            if (seleccionado != null) {
+                try (Connection conn = DriverManager.getConnection(dbUrl)) {
+                    String sql = "DELETE FROM clientes WHERE id = ?";
+                    PreparedStatement pstmt = conn.prepareStatement(sql);
+                    pstmt.setInt(1, seleccionado.getId());
+                    pstmt.executeUpdate();
+                    cargarClientes(dbUrl, clientes);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
+        editarBtn.setOnAction(e -> {
+            Cliente seleccionado = tabla.getSelectionModel().getSelectedItem();
+            if (seleccionado != null) {
+                nombreField.setText(seleccionado.getNombre());
+                telefonoField.setText(seleccionado.getTelefono());
+                emailField.setText(seleccionado.getEmail());
+                guardarBtn.setOnAction(ev -> {
+                    try (Connection conn = DriverManager.getConnection(dbUrl)) {
+                        String sql = "UPDATE clientes SET nombre = ?, telefono = ?, email = ? WHERE id = ?";
+                        PreparedStatement pstmt = conn.prepareStatement(sql);
+                        pstmt.setString(1, nombreField.getText());
+                        pstmt.setString(2, telefonoField.getText());
+                        pstmt.setString(3, emailField.getText());
+                        pstmt.setInt(4, seleccionado.getId());
+                        pstmt.executeUpdate();
+                        nombreField.clear();
+                        telefonoField.clear();
+                        emailField.clear();
+                        cargarClientes(dbUrl, clientes);
+                        guardarBtn.setOnAction(ev2 -> guardarCliente(dbUrl, nombreField, telefonoField, emailField, clientes));
+                    } catch (SQLException ex) {
+                        ex.printStackTrace();
+                    }
+                });
+            }
+        });
+
+        exportarBtn.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Guardar archivo PDF");
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivo PDF", "*.pdf"));
+            File archivo = fileChooser.showSaveDialog(layout.getScene().getWindow());
+            if (archivo != null) {
+                try {
+                    Document document = new Document();
+                    PdfWriter.getInstance(document, new FileOutputStream(archivo));
+                    document.open();
+                    document.add(new Paragraph("Lista de Clientes"));
+                    document.add(new Paragraph(" "));
+                    PdfPTable table = new PdfPTable(3);
+                    table.addCell("Nombre");
+                    table.addCell("Teléfono");
+                    table.addCell("Email");
+                    for (Cliente c : clientes) {
+                        table.addCell(c.getNombre());
+                        table.addCell(c.getTelefono());
+                        table.addCell(c.getEmail());
+                    }
+                    document.add(table);
+                    document.close();
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Exportación");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Exportación a PDF completada: " + archivo.getAbsolutePath());
+                    alert.showAndWait();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
+        layout.getChildren().addAll(nombreField, telefonoField, emailField,
+                guardarBtn, editarBtn, eliminarBtn, exportarBtn, tabla);
+
+        return layout;
+    }
+
+    private static void guardarCliente(String dbUrl, TextField nombreField, TextField telefonoField, TextField emailField, ObservableList<Cliente> clientes) {
+        String nombre = nombreField.getText();
+        String telefono = telefonoField.getText();
+        String email = emailField.getText();
+        if (!nombre.isBlank()) {
+            try (Connection conn = DriverManager.getConnection(dbUrl)) {
+                String sql = "INSERT INTO clientes(nombre, telefono, email) VALUES (?, ?, ?)";
+                PreparedStatement pstmt = conn.prepareStatement(sql);
+                pstmt.setString(1, nombre);
+                pstmt.setString(2, telefono);
+                pstmt.setString(3, email);
+                pstmt.executeUpdate();
+                nombreField.clear();
+                telefonoField.clear();
+                emailField.clear();
+                cargarClientes(dbUrl, clientes);
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private static void cargarClientes(String dbUrl, ObservableList<Cliente> clientes) {
+        clientes.clear();
+        try (Connection conn = DriverManager.getConnection(dbUrl)) {
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM clientes");
+            while (rs.next()) {
+                clientes.add(new Cliente(
+                        rs.getInt("id"),
+                        rs.getString("nombre"),
+                        rs.getString("telefono"),
+                        rs.getString("email")
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}

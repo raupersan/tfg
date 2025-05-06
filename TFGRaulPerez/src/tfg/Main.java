@@ -4,26 +4,16 @@ import com.lowagie.text.*;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import javafx.application.Application;
-import javafx.beans.property.SimpleDoubleProperty;
-import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
-import javafx.geometry.Insets;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.stage.Stage;
 
-import java.io.FileOutputStream;
 import java.sql.*;
-import java.time.LocalDate;
 
 public class Main extends Application {
 
     private static final String DB_URL = "jdbc:sqlite:negocio.db";
-    private TableView<Producto> tablaProductos;
-    private ObservableList<Producto> listaProductos;
 
     @Override
     public void start(Stage primaryStage) {
@@ -32,7 +22,7 @@ public class Main extends Application {
         TabPane tabPane = new TabPane();
 
         Tab clientesTab = new Tab("Clientes", ClienteView.crearVistaClientes(DB_URL));
-        Tab productosTab = new Tab("Productos", crearVistaProductos());
+        Tab productosTab = new Tab("Productos", ProductoView.crearVistaProductos(DB_URL));
         Tab ventasTab = new Tab("Ventas", VentaView.crearVistaVentas(DB_URL));
 
         tabPane.getTabs().addAll(clientesTab, productosTab, ventasTab);
@@ -42,155 +32,6 @@ public class Main extends Application {
         primaryStage.show();
 
         crearTablasSiNoExisten();
-        cargarProductos();
-    }
-
-    private VBox crearVistaProductos() {
-        VBox layout = new VBox(10);
-        layout.setPadding(new Insets(10));
-
-        TextField nombreField = new TextField();
-        nombreField.setPromptText("Nombre del producto");
-        TextField precioField = new TextField();
-        precioField.setPromptText("Precio");
-        TextField stockField = new TextField();
-        stockField.setPromptText("Stock");
-
-        Button guardarBtn = new Button("Guardar Producto");
-        Button editarBtn = new Button("Editar Producto Seleccionado");
-
-        guardarBtn.setOnAction(e -> {
-            try {
-                double precio = Double.parseDouble(precioField.getText());
-                int stock = Integer.parseInt(stockField.getText());
-                guardarProducto(nombreField.getText(), precio, stock);
-                nombreField.clear();
-                precioField.clear();
-                stockField.clear();
-                cargarProductos();
-            } catch (NumberFormatException ex) {
-                ex.printStackTrace();
-            }
-        });
-
-        Button eliminarBtn = new Button("Eliminar Producto Seleccionado");
-        eliminarBtn.setOnAction(e -> {
-            Producto seleccionado = tablaProductos.getSelectionModel().getSelectedItem();
-            if (seleccionado != null) {
-                eliminarProducto(seleccionado.getId());
-                cargarProductos();
-            }
-        });
-
-        editarBtn.setOnAction(e -> {
-            Producto seleccionado = tablaProductos.getSelectionModel().getSelectedItem();
-            if (seleccionado != null) {
-                nombreField.setText(seleccionado.getNombre());
-                precioField.setText(String.valueOf(seleccionado.getPrecio()));
-                stockField.setText(String.valueOf(seleccionado.getStock()));
-                guardarBtn.setOnAction(ev -> {
-                    try {
-                        double nuevoPrecio = Double.parseDouble(precioField.getText());
-                        int nuevoStock = Integer.parseInt(stockField.getText());
-                        actualizarProducto(seleccionado.getId(), nombreField.getText(), nuevoPrecio, nuevoStock);
-                        nombreField.clear();
-                        precioField.clear();
-                        stockField.clear();
-                        cargarProductos();
-                        guardarBtn.setOnAction(this::guardarProductoEvent);
-                    } catch (NumberFormatException ex) {
-                        ex.printStackTrace();
-                    }
-                });
-            }
-        });
-
-        tablaProductos = new TableView<>();
-        TableColumn<Producto, Number> colId = new TableColumn<>("ID");
-        colId.setCellValueFactory(data -> new SimpleIntegerProperty(data.getValue().getId()));
-
-        TableColumn<Producto, String> colNombre = new TableColumn<>("Nombre");
-        colNombre.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getNombre()));
-
-        TableColumn<Producto, Number> colPrecio = new TableColumn<>("Precio");
-        colPrecio.setCellValueFactory(data -> new SimpleDoubleProperty(data.getValue().getPrecio()));
-
-        TableColumn<Producto, Number> colStock = new TableColumn<>("Stock");
-        colStock.setCellValueFactory(data -> new SimpleIntegerProperty(data.getValue().getStock()));
-
-        tablaProductos.getColumns().addAll(colId, colNombre, colPrecio, colStock);
-
-        listaProductos = FXCollections.observableArrayList();
-        tablaProductos.setItems(listaProductos);
-
-        layout.getChildren().addAll(
-                new Label("Nuevo Producto:"),
-                nombreField, precioField, stockField,
-                guardarBtn, editarBtn, eliminarBtn,
-                new Label("Lista de Productos:"),
-                tablaProductos);
-
-        return layout;
-    }
-
-    private void guardarProductoEvent(javafx.event.ActionEvent event) {}
-
-    private void guardarProducto(String nombre, double precio, int stock) {
-        if (nombre == null || nombre.trim().isEmpty()) return;
-        try (Connection conn = DriverManager.getConnection(DB_URL)) {
-            String sql = "INSERT INTO productos(nombre, precio, stock) VALUES(?, ?, ?)";
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, nombre);
-            pstmt.setDouble(2, precio);
-            pstmt.setInt(3, stock);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void actualizarProducto(int id, String nombre, double precio, int stock) {
-        try (Connection conn = DriverManager.getConnection(DB_URL)) {
-            String sql = "UPDATE productos SET nombre = ?, precio = ?, stock = ? WHERE id = ?";
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, nombre);
-            pstmt.setDouble(2, precio);
-            pstmt.setInt(3, stock);
-            pstmt.setInt(4, id);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void eliminarProducto(int id) {
-        try (Connection conn = DriverManager.getConnection(DB_URL)) {
-            String sql = "DELETE FROM productos WHERE id = ?";
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            pstmt.setInt(1, id);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void cargarProductos() {
-        listaProductos.clear();
-        try (Connection conn = DriverManager.getConnection(DB_URL)) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT * FROM productos");
-            while (rs.next()) {
-                Producto p = new Producto(
-                        rs.getInt("id"),
-                        rs.getString("nombre"),
-                        rs.getDouble("precio"),
-                        rs.getInt("stock")
-                );
-                listaProductos.add(p);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
     }
 
     private void crearTablasSiNoExisten() {

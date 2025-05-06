@@ -1,0 +1,196 @@
+package tfg;
+
+import com.lowagie.text.Document;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.sql.*;
+
+public class ProductoView {
+
+    public static VBox crearVistaProductos(String dbUrl) {
+        VBox layout = new VBox(10);
+        layout.setPadding(new Insets(10));
+
+        TextField nombreField = new TextField();
+        nombreField.setPromptText("Nombre del producto");
+        TextField precioField = new TextField();
+        precioField.setPromptText("Precio");
+        TextField stockField = new TextField();
+        stockField.setPromptText("Stock");
+
+        Button guardarBtn = new Button("Guardar Producto");
+        Button eliminarBtn = new Button("Eliminar Producto Seleccionado");
+        Button editarBtn = new Button("Editar Producto");
+        Button exportarBtn = new Button("Exportar Productos a PDF");
+
+        TableView<Producto> tabla = new TableView<>();
+        ObservableList<Producto> productos = FXCollections.observableArrayList();
+
+        TableColumn<Producto, String> colNombre = new TableColumn<>("Nombre");
+        colNombre.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getNombre()));
+
+        TableColumn<Producto, Number> colPrecio = new TableColumn<>("Precio");
+        colPrecio.setCellValueFactory(data -> new javafx.beans.property.SimpleDoubleProperty(data.getValue().getPrecio()));
+
+        TableColumn<Producto, Number> colStock = new TableColumn<>("Stock");
+        colStock.setCellValueFactory(data -> new javafx.beans.property.SimpleIntegerProperty(data.getValue().getStock()));
+
+        tabla.getColumns().addAll(colNombre, colPrecio, colStock);
+        tabla.setItems(productos);
+
+        cargarProductos(dbUrl, productos);
+
+        guardarBtn.setOnAction(e -> {
+            String nombre = nombreField.getText();
+            try {
+                double precio = Double.parseDouble(precioField.getText());
+                int stock = Integer.parseInt(stockField.getText());
+                try (Connection conn = DriverManager.getConnection(dbUrl)) {
+                    String sql = "INSERT INTO productos(nombre, precio, stock) VALUES (?, ?, ?)";
+                    PreparedStatement pstmt = conn.prepareStatement(sql);
+                    pstmt.setString(1, nombre);
+                    pstmt.setDouble(2, precio);
+                    pstmt.setInt(3, stock);
+                    pstmt.executeUpdate();
+                    nombreField.clear();
+                    precioField.clear();
+                    stockField.clear();
+                    cargarProductos(dbUrl, productos);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+
+        eliminarBtn.setOnAction(e -> {
+            Producto seleccionado = tabla.getSelectionModel().getSelectedItem();
+            if (seleccionado != null) {
+                try (Connection conn = DriverManager.getConnection(dbUrl)) {
+                    String sql = "DELETE FROM productos WHERE id = ?";
+                    PreparedStatement pstmt = conn.prepareStatement(sql);
+                    pstmt.setInt(1, seleccionado.getId());
+                    pstmt.executeUpdate();
+                    cargarProductos(dbUrl, productos);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
+        editarBtn.setOnAction(e -> {
+            Producto seleccionado = tabla.getSelectionModel().getSelectedItem();
+            if (seleccionado != null) {
+                nombreField.setText(seleccionado.getNombre());
+                precioField.setText(String.valueOf(seleccionado.getPrecio()));
+                stockField.setText(String.valueOf(seleccionado.getStock()));
+                guardarBtn.setOnAction(ev -> {
+                    try (Connection conn = DriverManager.getConnection(dbUrl)) {
+                        String sql = "UPDATE productos SET nombre = ?, precio = ?, stock = ? WHERE id = ?";
+                        PreparedStatement pstmt = conn.prepareStatement(sql);
+                        pstmt.setString(1, nombreField.getText());
+                        pstmt.setDouble(2, Double.parseDouble(precioField.getText()));
+                        pstmt.setInt(3, Integer.parseInt(stockField.getText()));
+                        pstmt.setInt(4, seleccionado.getId());
+                        pstmt.executeUpdate();
+                        nombreField.clear();
+                        precioField.clear();
+                        stockField.clear();
+                        cargarProductos(dbUrl, productos);
+                        guardarBtn.setOnAction(event -> guardarProducto(dbUrl, nombreField, precioField, stockField, productos));
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                });
+            }
+        });
+
+        exportarBtn.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Guardar archivo PDF");
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivo PDF", "*.pdf"));
+            File archivo = fileChooser.showSaveDialog(layout.getScene().getWindow());
+            if (archivo != null) {
+                try {
+                    Document document = new Document();
+                    PdfWriter.getInstance(document, new FileOutputStream(archivo));
+                    document.open();
+                    document.add(new Paragraph("Lista de Productos"));
+                    document.add(new Paragraph(" "));
+                    PdfPTable table = new PdfPTable(3);
+                    table.addCell("Nombre");
+                    table.addCell("Precio");
+                    table.addCell("Stock");
+                    for (Producto p : productos) {
+                        table.addCell(p.getNombre());
+                        table.addCell(String.valueOf(p.getPrecio()));
+                        table.addCell(String.valueOf(p.getStock()));
+                    }
+                    document.add(table);
+                    document.close();
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Exportación");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Exportación a PDF completada: " + archivo.getAbsolutePath());
+                    alert.showAndWait();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
+        layout.getChildren().addAll(nombreField, precioField, stockField,
+                guardarBtn, editarBtn, eliminarBtn, exportarBtn, tabla);
+
+        return layout;
+    }
+
+    private static void guardarProducto(String dbUrl, TextField nombreField, TextField precioField, TextField stockField, ObservableList<Producto> productos) {
+        try {
+            String nombre = nombreField.getText();
+            double precio = Double.parseDouble(precioField.getText());
+            int stock = Integer.parseInt(stockField.getText());
+            try (Connection conn = DriverManager.getConnection(dbUrl)) {
+                String sql = "INSERT INTO productos(nombre, precio, stock) VALUES (?, ?, ?)";
+                PreparedStatement pstmt = conn.prepareStatement(sql);
+                pstmt.setString(1, nombre);
+                pstmt.setDouble(2, precio);
+                pstmt.setInt(3, stock);
+                pstmt.executeUpdate();
+                nombreField.clear();
+                precioField.clear();
+                stockField.clear();
+                cargarProductos(dbUrl, productos);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private static void cargarProductos(String dbUrl, ObservableList<Producto> productos) {
+        productos.clear();
+        try (Connection conn = DriverManager.getConnection(dbUrl)) {
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM productos");
+            while (rs.next()) {
+                productos.add(new Producto(
+                        rs.getInt("id"),
+                        rs.getString("nombre"),
+                        rs.getDouble("precio"),
+                        rs.getInt("stock")
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}

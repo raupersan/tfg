@@ -1,0 +1,214 @@
+package tfg;
+
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import java.util.Optional;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import java.sql.*;
+
+public class OpenAIClient {
+
+    private static String apiKey = null;
+
+    public static String consultarChatGPT(String mensaje) throws IOException {
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Clave de API requerida");
+            dialog.setHeaderText("Introduce tu clave de API de OpenAI");
+            dialog.setContentText("Clave:");
+
+            Optional<String> resultado = dialog.showAndWait();
+            if (!resultado.isPresent() || resultado.get().trim().isEmpty()) {
+                throw new IOException("No se proporcionó una clave de API.");
+            }
+
+            apiKey = resultado.get().trim();
+        }
+
+        String endpoint = "https://api.openai.com/v1/chat/completions";
+
+        JSONObject payload = new JSONObject();
+        payload.put("model", "gpt-3.5-turbo");
+        JSONArray messages = new JSONArray();
+        JSONObject userMessage = new JSONObject();
+        userMessage.put("role", "user");
+        userMessage.put("content", mensaje);
+        messages.put(userMessage);
+        payload.put("messages", messages);
+
+        URL url = new URL(endpoint);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("POST");
+        connection.setDoOutput(true);
+
+        connection.setRequestProperty("Content-Type", "application/json");
+        connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+
+        try (OutputStream os = connection.getOutputStream()) {
+            byte[] input = payload.toString().getBytes("utf-8");
+            os.write(input, 0, input.length);
+        }
+
+        int status = connection.getResponseCode();
+        InputStream is = (status < HttpURLConnection.HTTP_BAD_REQUEST) ? connection.getInputStream() : connection.getErrorStream();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line.trim());
+            }
+
+            JSONObject jsonResponse = new JSONObject(response.toString());
+
+            if (jsonResponse.has("error")) {
+                JSONObject error = jsonResponse.getJSONObject("error");
+                String errorMessage = error.optString("message", "Error desconocido");
+                throw new IOException("Error desde la API de OpenAI: " + errorMessage);
+            }
+
+            JSONArray choices = jsonResponse.getJSONArray("choices");
+            if (choices.length() > 0) {
+                JSONObject firstChoice = choices.getJSONObject(0);
+                JSONObject messageObj = firstChoice.getJSONObject("message");
+                return messageObj.getString("content").trim();
+            } else {
+                return "[Respuesta vacía de la API]";
+            }
+        }
+    }
+
+    public static void abrirChatInteractivo(String contexto) {
+        Stage ventana = new Stage();
+        ventana.initModality(Modality.APPLICATION_MODAL);
+        ventana.setTitle("Chat con ChatGPT");
+
+        VBox layout = new VBox(10);
+        layout.setPadding(new Insets(10));
+
+        TextArea historial = new TextArea();
+        historial.setEditable(false);
+        historial.setWrapText(true);
+
+        TextField entrada = new TextField();
+        entrada.setPromptText("Escribe tu mensaje...");
+
+        Button enviar = new Button("Enviar");
+        enviar.setDefaultButton(true);
+        enviar.setOnAction(e -> {
+            String mensaje = entrada.getText();
+            if (!mensaje.trim().isEmpty()) {
+                historial.appendText("Tú: " + mensaje + "\n");
+                entrada.clear();
+                try {
+                    String respuesta = consultarChatGPT(contexto + "\nUsuario: " + mensaje);
+                    historial.appendText("ChatGPT: " + respuesta + "\n\n");
+                } catch (IOException ex) {
+                    historial.appendText("[Error al consultar ChatGPT: " + ex.getMessage() + "]\n");
+                }
+            }
+        });
+
+        HBox entradaBox = new HBox(5, entrada, enviar);
+        entradaBox.setAlignment(Pos.CENTER);
+
+        layout.getChildren().addAll(historial, entradaBox);
+        Scene escena = new Scene(layout, 500, 400);
+        ventana.setScene(escena);
+        ventana.showAndWait();
+    }
+
+    public static HBox crearBotonChatGPTResumen(String dbUrl, String tabla) {
+        return crearBotonChatGPT(crearResumenDesdeBD(dbUrl, tabla));
+    }
+
+    private static String crearResumenDesdeBD(String dbUrl, String tabla) {
+        StringBuilder resumen = new StringBuilder();
+        String consulta = "";
+
+        switch (tabla) {
+            case "ventas":
+                resumen.append("Tengo estas ventas registradas:\n");
+                consulta = "SELECT cliente, producto, cantidad, total, fecha FROM ventas ORDER BY fecha DESC LIMIT 10";
+                break;
+            case "clientes":
+                resumen.append("Tengo estos clientes registrados:\n");
+                consulta = "SELECT nombre, telefono, email FROM clientes LIMIT 10";
+                break;
+            case "productos":
+                resumen.append("Tengo estos productos registrados:\n");
+                consulta = "SELECT nombre, precio, stock FROM productos LIMIT 10";
+                break;
+            default:
+                return "No se ha definido un resumen válido.";
+        }
+
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(consulta)) {
+
+            while (rs.next()) {
+                switch (tabla) {
+                    case "ventas":
+                        resumen.append("- ").append(rs.getString("fecha"))
+                               .append(", cliente: ").append(rs.getString("cliente"))
+                               .append(", producto: ").append(rs.getString("producto"))
+                               .append(", cantidad: ").append(rs.getInt("cantidad"))
+                               .append(", total: ").append(rs.getDouble("total")).append("€\n");
+                        break;
+                    case "clientes":
+                        resumen.append("- ").append(rs.getString("nombre"))
+                               .append(", teléfono: ").append(rs.getString("telefono"))
+                               .append(", email: ").append(rs.getString("email"))
+                               .append("\n");
+                        break;
+                    case "productos":
+                        resumen.append("- ").append(rs.getString("nombre"))
+                               .append(", precio: ").append(rs.getDouble("precio"))
+                               .append(", stock: ").append(rs.getInt("stock"))
+                               .append("\n");
+                        break;
+                }
+            }
+        } catch (SQLException e) {
+            resumen.append("(Error al cargar datos de " + tabla + ")");
+        }
+
+        return resumen.toString();
+    }
+
+    public static HBox crearBotonChatGPT(String resumen) {
+    	Button sugerenciaChatgptBtn = new Button("Integración con ChatGPT");
+        try {
+            File file = new File("lib/openai-icon-2021x2048-4rpe5x7n.png");
+            if (file.exists()) {
+                Image icono = new Image(file.toURI().toString());
+                ImageView iconoView = new ImageView(icono);
+                iconoView.setFitWidth(24);
+                iconoView.setFitHeight(24);
+                sugerenciaChatgptBtn.setGraphic(iconoView);
+                sugerenciaChatgptBtn.setStyle("-fx-background-color: transparent;");
+            } else {
+                System.err.println("Icono no encontrado en: " + file.getAbsolutePath());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        sugerenciaChatgptBtn.setOnAction(e -> abrirChatInteractivo(resumen));
+        HBox hbox = new HBox(sugerenciaChatgptBtn);
+        hbox.setAlignment(Pos.TOP_RIGHT);
+        return hbox;
+    }
+}
