@@ -24,6 +24,10 @@ public class Main extends Application {
         Tab clientesTab = new Tab("Clientes", ClienteView.crearVistaClientes(DB_URL));
         Tab productosTab = new Tab("Productos", ProductoView.crearVistaProductos(DB_URL));
         Tab ventasTab = new Tab("Ventas", VentaView.crearVistaVentas(DB_URL));
+        
+        clientesTab.setClosable(false);
+        productosTab.setClosable(false);
+        ventasTab.setClosable(false);
 
         tabPane.getTabs().addAll(clientesTab, productosTab, ventasTab);
 

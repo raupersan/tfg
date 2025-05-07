@@ -5,6 +5,7 @@ import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
@@ -18,7 +19,7 @@ import com.lowagie.text.pdf.*;
 
 public class ClienteView {
 
-    public static VBox crearVistaClientes(String dbUrl) {
+    public static ScrollPane crearVistaClientes(String dbUrl) {
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(10));
         layout.getChildren().add(OpenAIClient.crearBotonChatGPTResumen(dbUrl, "clientes"));
@@ -130,10 +131,19 @@ public class ClienteView {
             }
         });
 
-        layout.getChildren().addAll(nombreField, telefonoField, emailField,
-                guardarBtn, editarBtn, eliminarBtn, exportarBtn, tabla);
+        HBox botones = new HBox(10);
+        botones.getChildren().addAll(guardarBtn, editarBtn, eliminarBtn, exportarBtn);
 
-        return layout;
+        layout.getChildren().addAll(
+                nombreField, telefonoField, emailField,
+                botones,
+                tabla
+        );
+
+
+        ScrollPane scrollPane = new ScrollPane(layout);
+		scrollPane.setFitToWidth(true);
+        return scrollPane;
     }
 
     private static void guardarCliente(String dbUrl, TextField nombreField, TextField telefonoField, TextField emailField, ObservableList<Cliente> clientes) {

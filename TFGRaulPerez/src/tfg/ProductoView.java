@@ -136,8 +136,12 @@ public class ProductoView {
 			}
 		});
 
-		layout.getChildren().addAll(nombreField, precioField, stockField, guardarBtn, editarBtn, eliminarBtn,
-				exportarBtn, tabla);
+		HBox botonesProducto = new HBox(10);
+		botonesProducto.getChildren().addAll(guardarBtn, editarBtn, eliminarBtn, exportarBtn);
+
+		layout.getChildren().addAll(nombreField, precioField, stockField,
+		        botonesProducto, tabla);
+
 
 		ScrollPane scrollPane = new ScrollPane(layout);
 		scrollPane.setFitToWidth(true);
