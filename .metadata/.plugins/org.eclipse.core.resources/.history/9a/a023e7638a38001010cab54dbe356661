@@ -7,9 +7,11 @@ import com.lowagie.text.pdf.PdfWriter;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
+import javafx.scene.control.ScrollPane;
 import javafx.stage.FileChooser;
 
 import java.io.File;
@@ -32,24 +34,8 @@ public class ProductoView {
 		Button guardarBtn = new Button("Guardar Producto");
 		Button eliminarBtn = new Button("Eliminar Producto Seleccionado");
 		Button editarBtn = new Button("Editar Producto");
-		Button exportarBtn = new Button("Exportar");
-		Button exportarPdfBtn = new Button("Exportar a PDF");
-		Button exportarExcelBtn = new Button("Exportar a Excel");
-
-		HBox exportarOpciones = new HBox(10);
-		exportarOpciones.getChildren().addAll(exportarPdfBtn, exportarExcelBtn);
-		exportarOpciones.setVisible(false);
-		exportarOpciones.setManaged(false);
-		
-
-		HBox botonesExportar = new HBox(10);
-		botonesExportar.getChildren().addAll(exportarBtn, exportarOpciones);
-
-		exportarBtn.setOnAction(e -> {
-		    boolean mostrar = !exportarOpciones.isVisible();
-		    exportarOpciones.setVisible(mostrar);
-		    exportarOpciones.setManaged(mostrar);
-		});
+		Button exportarBtn = new Button("Exportar Productos a PDF");
+		layout.getChildren().add(OpenAIClient.crearBotonChatGPTResumen(dbUrl, "productos"));
 
 		TableView<Producto> tabla = new TableView<>();
 		ObservableList<Producto> productos = FXCollections.observableArrayList();
@@ -116,7 +102,7 @@ public class ProductoView {
 			}
 		});
 
-		exportarPdfBtn.setOnAction(e -> {
+		exportarBtn.setOnAction(e -> {
 			FileChooser fileChooser = new FileChooser();
 			fileChooser.setTitle("Guardar archivo PDF");
 			fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivo PDF", "*.pdf"));
@@ -126,9 +112,12 @@ public class ProductoView {
 					Document document = new Document();
 					PdfWriter.getInstance(document, new FileOutputStream(archivo));
 					document.open();
-					document.add(new Paragraph("Historial de Ventas"));
+					document.add(new Paragraph("Lista de Productos"));
 					document.add(new Paragraph(" "));
-					PdfPTable table = new PdfPTable(1);
+					PdfPTable table = new PdfPTable(3);
+					table.addCell("Nombre");
+					table.addCell("Precio");
+					table.addCell("Stock");
 					for (Producto p : productos) {
 						table.addCell(p.getNombre());
 						table.addCell(String.valueOf(p.getPrecio()));
@@ -136,36 +125,24 @@ public class ProductoView {
 					}
 					document.add(table);
 					document.close();
-					alerta("Exportación completada", "El archivo ha sido creado exitosamente.");
+					Alert alert = new Alert(Alert.AlertType.INFORMATION);
+					alert.setTitle("Exportación");
+					alert.setHeaderText(null);
+					alert.setContentText("Exportación a PDF completada: " + archivo.getAbsolutePath());
+					alert.showAndWait();
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}
 			}
 		});
-		exportarExcelBtn.setOnAction(e -> {
-			FileChooser fileChooser = new FileChooser();
-			fileChooser.setTitle("Guardar archivo Excel");
-			fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivo CSV", "*.csv"));
-			File archivo = fileChooser.showSaveDialog(layout.getScene().getWindow());
-			if (archivo != null) {
-				try (java.io.PrintWriter writer = new java.io.PrintWriter(archivo)) {
-					writer.println("Nombre;Precio;Stock");
-					for (Producto p : productos) {
-						writer.println(p.getNombre() + ";" + p.getPrecio() + ";" + p.getStock());
-					}
-					alerta("Exportación completada", "Archivo CSV creado con éxito.");
-				} catch (Exception ex) {
-					ex.printStackTrace();
-				}
-			}
-		});
+
 		HBox botonesProducto = new HBox(10);
 		botonesProducto.getChildren().addAll(guardarBtn, editarBtn, eliminarBtn, exportarBtn);
 
-		layout.getChildren().addAll(
-			    nombreField, precioField, stockField, botonesProducto, botonesExportar,
-			    tabla
-			);
+		layout.getChildren().addAll(nombreField, precioField, stockField,
+		        botonesProducto, tabla);
+
+
 		ScrollPane scrollPane = new ScrollPane(layout);
 		scrollPane.setFitToWidth(true);
 		return scrollPane;
@@ -206,13 +183,5 @@ public class ProductoView {
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-	}
-
-	private static void alerta(String titulo, String mensaje) {
-		Alert alert = new Alert(Alert.AlertType.INFORMATION);
-		alert.setTitle(titulo);
-		alert.setHeaderText(null);
-		alert.setContentText(mensaje);
-		alert.showAndWait();
 	}
 }

@@ -189,8 +189,7 @@ public class OpenAIClient {
     }
 
     public static HBox crearBotonChatGPT(String resumen) {
-        Button sugerenciaChatgptBtn = new Button("Integración con ChatGPT");
-
+    	Button sugerenciaChatgptBtn = new Button("Integración con ChatGPT");
         try {
             File file = new File("lib/openai-icon-2021x2048-4rpe5x7n.png");
             if (file.exists()) {
@@ -206,112 +205,10 @@ public class OpenAIClient {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        sugerenciaChatgptBtn.setOnAction(e -> {
-            if (apiKey == null || apiKey.trim().isEmpty()) {
-                Dialog<String> dialog = new Dialog<>();
-                dialog.setTitle("Clave de API requerida");
-                dialog.setHeaderText("Introduce tu clave de API de OpenAI");
 
-                ButtonType okButton = new ButtonType("Aceptar", ButtonBar.ButtonData.OK_DONE);
-                dialog.getDialogPane().getButtonTypes().addAll(okButton, ButtonType.CANCEL);
-
-                TextField claveField = new TextField();
-                claveField.setPromptText("Clave");
-
-                Hyperlink infoLink = new Hyperlink("https://platform.openai.com/docs/overview");
-                infoLink.setOnAction(event -> {
-                    try {
-                        java.awt.Desktop.getDesktop().browse(new java.net.URI(infoLink.getText()));
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
-                });
-
-                Label info = new Label("(para más información sobre la API de OpenAI, haz clic aquí)");
-                info.setStyle("-fx-font-size: 10; -fx-text-fill: #666;");
-                VBox linkBox = new VBox(2, info, infoLink);
-                linkBox.setPadding(new Insets(10, 0, 0, 0));
-
-                VBox content = new VBox(10, new Label("Clave:"), claveField, linkBox);
-                dialog.getDialogPane().setContent(content);
-
-                dialog.setResultConverter(dialogButton -> {
-                    if (dialogButton == okButton) {
-                        return claveField.getText();
-                    }
-                    return null;
-                });
-
-                Optional<String> resultado = dialog.showAndWait();
-                if (!resultado.isPresent() || resultado.get().trim().isEmpty()) return;
-
-                apiKey = resultado.get().trim();
-
-                // Verificamos la validez de la clave con una petición de prueba
-                try {
-                    String respuesta = consultarChatGPT("Dime que esta clave es válida.");
-                    if (respuesta.toLowerCase().contains("clave") || respuesta.length() < 5) {
-                        throw new IOException("Respuesta inesperada: " + respuesta);
-                    }
-
-                    abrirChatInteractivo(resumen); // solo si no hubo error
-                } catch (IOException ex) {
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.setTitle("Clave inválida");
-                    alert.setHeaderText("Error al verificar la clave API");
-                    alert.setContentText(ex.getMessage());
-                    alert.showAndWait();
-                    apiKey = null; 
-                }
-
-            } else {
-                abrirChatInteractivo(resumen);
-            }
-        });
-
-
+        sugerenciaChatgptBtn.setOnAction(e -> abrirChatInteractivo(resumen));
         HBox hbox = new HBox(sugerenciaChatgptBtn);
         hbox.setAlignment(Pos.TOP_RIGHT);
         return hbox;
     }
-    public static Optional<String> solicitarClaveAPI() {
-    	Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Clave de API requerida");
-        dialog.setHeaderText("Introduce tu clave de API de OpenAI");
-
-        ButtonType okButton = new ButtonType("Aceptar", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(okButton, ButtonType.CANCEL);
-
-        TextField claveField = new TextField();
-        claveField.setPromptText("Clave");
-
-        Label infoInicio = new Label("(para más información sobre la API de OpenAI, haz clic ");
-        Hyperlink enlace = new Hyperlink("aquí");
-        Label infoFin = new Label(")");
-
-        enlace.setOnAction(event -> {
-            try {
-                java.awt.Desktop.getDesktop().browse(new java.net.URI("https://platform.openai.com/docs/overview"));
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        });
-
-        HBox infoLinea = new HBox(2, infoInicio, enlace, infoFin);
-        infoLinea.setStyle("-fx-font-size: 10; -fx-text-fill: #666;");
-        VBox.setMargin(infoLinea, new Insets(5, 0, 0, 0));
-
-        VBox content = new VBox(10, new Label("Clave:"), claveField, infoLinea);
-        dialog.getDialogPane().setContent(content);
-
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == okButton) {
-                return claveField.getText().trim();
-            }
-            return null;
-        });
-
-        return dialog.showAndWait().filter(clave -> !clave.isEmpty());
-    }
-
 }
