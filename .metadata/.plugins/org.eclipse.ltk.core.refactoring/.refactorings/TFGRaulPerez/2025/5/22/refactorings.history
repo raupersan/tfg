@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Move element &apos;logo.png&apos; to &apos;TFGRaulPerez/src/tfg.Imagenes&apos;&#x0D;&#x0A;- Original project: &apos;TFGRaulPerez&apos;&#x0D;&#x0A;- Destination element: &apos;TFGRaulPerez/src/tfg.Imagenes&apos;&#x0D;&#x0A;- Original element: &apos;logo.png&apos;&#x0D;&#x0A;- Update references to refactored element" description="Move file" destination="/src&lt;tfg.Imagenes" element1="lib/logo.png" files="1" flags="589830" folders="0" id="org.eclipse.jdt.ui.move" policy="org.eclipse.jdt.ui.moveResources" qualified="false" references="true" stamp="1748463918921" units="0" version="1.0"/>
+</session>
